@@ -1,3 +1,5 @@
+"""Global runtime state and hyperparameter registry for IDDIFF."""
+
 import torch, os, logging, random
 import numpy as np
 from parse import parse_args
@@ -15,11 +17,9 @@ CORES = 16
 os.environ['NUMEXPR_MAX_THREADS'] = '16'
 
 
-# *****Attention: Please store datasets in your path: '../DiffDGMN/data/processed'
-# DATA_PATH = '/home/zjk/DiffDGMN/data/processed'
-DATA_PATH = r'D:\postgraduate\code\1.Diff-DGMN\Diff-DGMN-main\data\processed'
-# FILE_PATH = '/home/zjk/DiffDGMN/code/checkpoints'
-FILE_PATH = r'D:\postgraduate\code\1.Diff-DGMN\Diff-DGMN-main\checkpoints'
+
+DATA_PATH = r'D:\postgraduate\code\IDDIFF\IDDIFF-main\data\processed'
+FILE_PATH = r'D:\postgraduate\code\IDDIFF\IDDIFF-main\checkpoints'
 
 ARG = parse_args()
 LOG_FORMAT = "%(asctime)s  %(message)s"
@@ -42,6 +42,7 @@ os.makedirs(FILE_PATH, exist_ok=True)
 
 dist_mat = torch.from_numpy(np.load(os.path.join(DATA_PATH, dataset.upper(), 'dist_mat.npy')))
 device = torch.device('cpu' if ARG.gpu is None else f'cuda:{ARG.gpu}')
+# Shared settings for all three IDDIFF modules and model optimization.
 conf = {'lr': ARG.lr,
         'decay': ARG.decay,
         'num_layer': ARG.layer,

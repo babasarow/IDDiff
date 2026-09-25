@@ -1,3 +1,10 @@
+"""Auxiliary refactoring of the IDDIFF trajectory-intent pipeline.
+
+This file isolates User Sequence Encoding and Intent Prototype Construction.
+The production model remains in ``model.py``; this auxiliary class preserves
+its existing interface and tensor names for compatibility.
+"""
+
 import torch
 import torch.nn as nn
 
@@ -11,17 +18,21 @@ from cluster_utils import (
 )
 
 
-class DiffDGMNRefactored(nn.Module):
-    """
-    重构后的模型片段：替换原 SeqGraphEncoder 与 BiSeqGCN，采用注意力+PFFN 编码；
-    在得到 S_whole 后，执行滑动窗口、子序列编码、DBSCAN 聚类与负向引导，得到 S_final；
-    最后将 S_final 作为条件向量，接入扩散模型 DiffGenerator（此处提供适配接口）。
+class IDDIFFRefactored(nn.Module):
+    """Prototype-oriented implementation of trajectory intent extraction.
+
+    The pipeline applies User Sequence Encoding to obtain a whole-trajectory
+    representation, constructs local intent prototypes with sliding windows
+    and DBSCAN, and returns a prototype-guided condition for a downstream
+    Intent Refinement Module. The legacy class name is retained to avoid
+    breaking external imports.
     """
 
     def __init__(self, cfg: ModelConfig):
         super().__init__()
         self.cfg = cfg
-        # 序列编码器初始化
+
+        # Sequence-aware Trajectory Representation Module: shared encoder.
         self.encoder = AttentionPFFNEncoder(
             emb_dim=cfg.emb_dim,
             n_heads=cfg.n_heads,
@@ -31,40 +42,57 @@ class DiffDGMNRefactored(nn.Module):
         self.to(cfg.device)
 
     def forward(self, seq_embeddings: torch.Tensor) -> dict:
-        """
-        seq_embeddings: (B, T, D) 输入的 POI 嵌入序列，Padding 为全零向量
-        返回: 字典，包含 S_whole, S_final 以及中间调试信息
+        """Extract full-trajectory and prototype-guided intent representations.
+
+        Args:
+            seq_embeddings: Padded POI embedding sequences with shape
+                ``(B, T, D)``. All-zero rows are treated as padding.
+
+        Returns:
+            Intermediate representations from User Sequence Encoding and
+            Intent Prototype Construction.
         """
         device = self.cfg.device
         x = seq_embeddings.to(device)  # (B, T, D)
-        # 构造注意力的 key_padding_mask：True 表示忽略位置
-        valid_mask = (x.abs().sum(dim=-1) > 0)  # (B, T)
+
+        # Padding mask for multi-head self-attention; True means ignored.
+        valid_mask = x.abs().sum(dim=-1) > 0  # (B, T)
         key_padding_mask = ~valid_mask  # (B, T)
 
-        # 1) 注意力 + PFFN 编码
+        # User Sequence Encoding: attention, residual normalization, and FFN.
         encoded = self.encoder(x, key_padding_mask=key_padding_mask)  # (B, T, D)
 
-        # 2) 有效位置上的平均池化得到 S_whole
-        s_whole = mean_pool_with_mask(encoded, valid_mask.to(encoded.dtype))  # (B, D)
+        # Masked mean pooling produces the whole-trajectory representation.
+        s_whole = mean_pool_with_mask(
+            encoded, valid_mask.to(encoded.dtype)
+        )  # (B, D)
 
-        # 3) 滑动窗口切分与子序列编码
-        batch_subseqs = sliding_windows_for_batch(x, window_size=self.cfg.window_size)  # 每个样本的子序列列表
-        subseq_vectors = encode_subsequences(batch_subseqs, encoder=self.encoder, device=device)  # 每个样本 (N_i, D)
+        # Intent Prototype Construction: local subtrajectory generation.
+        batch_subseqs = sliding_windows_for_batch(
+            x, window_size=self.cfg.window_size
+        )
+        subseq_vectors = encode_subsequences(
+            batch_subseqs, encoder=self.encoder, device=device
+        )
 
-        # 4) DBSCAN 聚类并计算簇中心
+        # Cluster local intent representations and use centroids as prototypes.
         centers_per_sample = []
-        for vecs in subseq_vectors:
+        for vectors in subseq_vectors:
             centers = dbscan_cluster_centers(
-                vectors=vecs.to(device),
+                vectors=vectors.to(device),
                 eps=self.cfg.dbscan_eps,
                 min_samples=self.cfg.dbscan_min_samples,
-            )  # (K, D) 或 (1, D)
+            )  # (K, D) or fallback (1, D)
             centers_per_sample.append(centers)
 
-        # 5) 计算最近簇中心并进行负向引导
-        nearest_centers, _ = nearest_center_distance(s_whole, centers_per_sample)  # (B, D)
-        w = self.cfg.guidance_w
-        s_final = (1.0 - w) * s_whole - w * nearest_centers  # (B, D)
+        # Select the prototype nearest to the whole-trajectory representation.
+        nearest_centers, _ = nearest_center_distance(
+            s_whole, centers_per_sample
+        )  # (B, D)
+
+        # Retain the auxiliary implementation's original weighted combination.
+        weight = self.cfg.guidance_w
+        s_final = (1.0 - weight) * s_whole - weight * nearest_centers  # (B, D)
 
         return {
             "S_whole": s_whole,
@@ -75,19 +103,18 @@ class DiffDGMNRefactored(nn.Module):
             "nearest_centers": nearest_centers,
         }
 
-    def generate_with_diffusion(self, diff_generator, s_final: torch.Tensor, **kwargs):
-        """
-        扩散模型接入适配：将 S_final 作为条件向量输入到 DiffGenerator。
-        diff_generator: 扩散模型实例，需支持以下任一接口：
-            - forward(cond, **kwargs)
-            - generate(cond, **kwargs)
-        s_final: (B, D) 条件向量
-        kwargs: 额外参数（如步数、噪声级别等）
-        返回: 扩散模型输出
+    def generate_with_diffusion(
+        self, diff_generator, s_final: torch.Tensor, **kwargs
+    ):
+        """Pass the prototype-guided condition to an Intent Refinement Module.
+
+        The downstream generator may expose either ``forward`` or ``generate``.
+        ``s_final`` has shape ``(B, D)`` and serves as the intent condition.
         """
         if hasattr(diff_generator, "forward"):
             return diff_generator.forward(s_final, **kwargs)
         if hasattr(diff_generator, "generate"):
             return diff_generator.generate(s_final, **kwargs)
-        raise AttributeError("diff_generator 不包含 forward 或 generate 方法")
-
+        raise AttributeError(
+            "diff_generator must define either a forward or generate method"
+        )

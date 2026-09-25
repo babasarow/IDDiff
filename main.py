@@ -1,3 +1,5 @@
+"""Training and full-ranking evaluation entry point for IDDIFF."""
+
 import os.path
 import torch
 import gol
@@ -5,11 +7,12 @@ import numpy as np
 from torch.utils.data import DataLoader
 from pprint import pformat
 
-from model import DiffDGMN
+from model import IDDIFF
 from dataset import GraphData, collate_eval, getDatasets, collate_edge, NDCG_at_k, ACC_at_k, MRR
 
 
-def eval_model(model: DiffDGMN, eval_set: GraphData):
+def eval_model(model: IDDIFF, eval_set: GraphData):
+    """Evaluate next-POI ranking with Acc/Recall, NDCG, and MRR."""
     Ks = [1, 2, 5, 10, 20]
     result = {'Recall': np.zeros(len(Ks)), 'NDCG': np.zeros(len(Ks)), 'MRR': 0., 'ACC': 0.}
     eval_loader = DataLoader(eval_set, batch_size=gol.TEST_BATCH_SZ, shuffle=True, collate_fn=collate_eval)
@@ -36,19 +39,20 @@ def eval_model(model: DiffDGMN, eval_set: GraphData):
                 mrr = MRR(rank_results)
 
                 result['Recall'] += recall
-                result['NDCG'] += ndcg               
+                result['NDCG'] += ndcg
                 result['MRR'] += mrr
-                # ACC 取 K=1 的准确率
+                # Acc@1 is the top-1 hit rate.
                 result['ACC'] += ACC_at_k(rank_results, 1, 1)
                 tot_cnt += 1
 
     result['Recall'] /= tot_cnt
-    result['NDCG'] /= tot_cnt   
+    result['NDCG'] /= tot_cnt
     result['MRR'] /= tot_cnt
     result['ACC'] /= tot_cnt
     return result
 
-def train_eval(model: DiffDGMN, datasets):
+def train_eval(model: IDDIFF, datasets):
+    """Optimize IDDIFF and select checkpoints by validation Recall@5."""
     trn_set, val_set, tst_set = datasets
     trn_loader = DataLoader(trn_set, batch_size=gol.BATCH_SZ, shuffle=True, collate_fn=collate_edge)
     opt = torch.optim.AdamW(model.parameters(), lr=gol.conf['lr'], weight_decay=gol.conf['decay'])
@@ -76,7 +80,7 @@ def train_eval(model: DiffDGMN, datasets):
         ave_tot /= batch_num
         ave_rec /= batch_num
         ave_fis /= batch_num
-        # validation phase:  
+        # Validation phase.
         val_results = eval_model(model, val_set)
 
         gol.pLog(f'Avg Epoch {epoch} / {gol.EPOCH}, Total_Loss: {ave_tot:.5f}' + f' = Recloss: {ave_rec:.5f} + Divloss: {ave_fis:.5f}')
@@ -87,7 +91,7 @@ def train_eval(model: DiffDGMN, datasets):
 
         if val_results["Recall"][2] > best_val_recall or epoch == 0:
             best_val_epoch, best_val_recall = epoch, val_results["Recall"][2]
-            # test phase: 
+            # Test the checkpoint with the best validation Recall@5.
             tst_result = eval_model(model, tst_set)
             gol.pLog(f'New test top@k result at k = {1, 2, 5, 10, 20}:\n {pformat(tst_result)}')
             if gol.SAVE:
@@ -100,16 +104,16 @@ def train_eval(model: DiffDGMN, datasets):
 if __name__ == '__main__':
     w_path = os.path.join(gol.FILE_PATH, 'weight.pth')
     n_user, n_poi, datasets, G_D = getDatasets(gol.DATA_PATH, gol.dataset)
-    POI_model = DiffDGMN(n_user, n_poi, G_D)
+    POI_model = IDDIFF(n_user, n_poi, G_D)
     if gol.LOAD:
         POI_model.load_state_dict(torch.load(w_path))
     POI_model = POI_model.to(gol.device)
-    
+
     gol.pLog(f'Dropout probability: {gol.conf["dp"] if gol.conf["dropout"] else 0}')
     num_params = 0
     for param in POI_model.parameters():
         num_params += param.numel()
-    gol.pLog(f'The Number of Parameters for the Diff-DGMN Model is {num_params}')
+    gol.pLog(f'The Number of Parameters for the IDDIFF Model is {num_params}')
     gol.pLog(f'-------------------Start Training---------------------\n')
 
     test_result, best_epoch = train_eval(POI_model, datasets)

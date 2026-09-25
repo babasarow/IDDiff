@@ -1,8 +1,8 @@
-# IDiffRec: Intent-aware Deterministic Diffusion Model for Next POI Recommendation
+# IDDIFF: Intent-aware Deterministic Diffusion Model for Next POI Recommendation
 
-This repository provides the PyTorch implementation of **IDiffRec**, an intent-aware deterministic diffusion framework for next point-of-interest (POI) recommendation.
+This repository provides the PyTorch implementation of **IDDIFF**, an intent-aware deterministic diffusion framework for next point-of-interest (POI) recommendation.
 
-IDiffRec contains three main components:
+IDDIFF contains three main components:
 
 1. **Sequence-aware Trajectory Representation Module** constructs a whole-trajectory representation, extracts local intent prototypes through sliding-window segmentation and DBSCAN clustering, and selects the dominant prototype as the diffusion condition.
 2. **POI Distance Graph Encoder** captures geographical dependencies among POIs with distance-aware graph convolution.
@@ -14,14 +14,14 @@ IDiffRec contains three main components:
 
 ```bash
 git clone <repository-url>
-cd IDiffRec
+cd IDDIFF
 ```
 
 ### 2. Create a Conda environment
 
 ```bash
-conda create -n idiffrec python=3.10 -y
-conda activate idiffrec
+conda create -n iddiff python=3.10 -y
+conda activate iddiff
 ```
 
 ### 3. Install dependencies
@@ -38,9 +38,9 @@ pip install torch-geometric numpy pandas scikit-learn
 ## 🗂️ Project Structure
 
 ```text
-IDiffRec/
+IDDIFF/
 ├── main.py               # Training and full-ranking evaluation entry point
-├── model.py              # Main IDiffRec architecture
+├── model.py              # Main IDDIFF architecture
 ├── layers.py             # Distance-aware GCN and deterministic diffusion layers
 ├── dataset.py            # Dataset loading, graph construction, and metrics
 ├── parse.py              # Command-line arguments
@@ -96,7 +96,7 @@ Their roles are:
 
 ## 🚀 Training and Evaluation
 
-### Step 1: Train IDiffRec
+### Step 1: Train IDDIFF
 
 The reported hyperparameter setting uses an embedding dimension of `128`, the Adam optimizer with a learning rate of `5e-4`, a balance coefficient of `0.75`, a diffusion-loss coefficient of `0.2`, a dropout rate of `0.25`, a sliding-window size of `4`, and `100` diffusion steps. In the current command-line interface, the balance and diffusion-loss coefficients correspond to `--alpha` and `--zeta`, respectively.
 

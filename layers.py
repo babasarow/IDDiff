@@ -1,3 +1,5 @@
+"""Neural layers used by the three core components of IDDIFF."""
+
 import gol
 import torch
 import torch.nn as nn
@@ -6,13 +8,11 @@ from torch_geometric.nn import MessagePassing
 from torch_geometric.nn.conv.gcn_conv import gcn_norm
 from torch_geometric.utils import add_self_loops, softmax
 
-'''
-PFFN: Point-wise Feed Forward Network
-'''
+"""Point-wise feed-forward network used after attention blocks."""
 class PFFN(nn.Module):
     def __init__(self, hid_size, dropout_rate):
         super(PFFN, self).__init__()
-        self.conv1 = nn.Conv1d(hid_size, hid_size, kernel_size=1) 
+        self.conv1 = nn.Conv1d(hid_size, hid_size, kernel_size=1)
         self.dropout1 = nn.Dropout(p=dropout_rate)
         self.relu = nn.ReLU()
         self.conv2 = nn.Conv1d(hid_size, hid_size, kernel_size=1)
@@ -26,22 +26,22 @@ class PFFN(nn.Module):
 
 
 
-'''
-BiSeqGCN: Bi-directional Sequence Graph Convolution, is as a part of (A) Direction-aware Sequence Graph Multi-scale Representation Module (SeqGraphRep)
-    Input: User-oriented POI Transition Graph G_u
-    Return: Node representation of the user-oriented POI transition graph H_u
-'''
+"""Legacy bidirectional sequence GCN retained for backward compatibility.
+
+IDDIFF replaces this path with attention-based User Sequence Encoding in the
+Sequence-aware Trajectory Representation Module.
+"""
 class BiSeqGCN(MessagePassing):
     def __init__(self, hid_dim, flow="source_to_target"):
         super(BiSeqGCN, self).__init__(aggr='add', flow=flow)
         self.hid_dim = hid_dim
         self.alpha_src = nn.Linear(hid_dim, 1, bias=False)
         self.alpha_dst = nn.Linear(hid_dim, 1, bias=False)
-        
-        # attention_weight
+
+        # Trainable attention projection for legacy sequence-graph messages.
         self.attention_weight = nn.Parameter(torch.Tensor(hid_dim, hid_dim))
         nn.init.xavier_uniform_(self.attention_weight.data)
-        
+
         nn.init.xavier_uniform_(self.alpha_src.weight)
         nn.init.xavier_uniform_(self.alpha_dst.weight)
         self.act = nn.LeakyReLU()
@@ -52,32 +52,30 @@ class BiSeqGCN(MessagePassing):
         edge_index = G_u.edge_index
         edge_time  = G_u.edge_time
         edge_dist  = G_u.edge_dist
-        
+
         x = POI_embs[sess_idx]
         edge_l = delta_dis_embs[edge_dist]
         edge_t = delta_time_embs[edge_time]
         all_edges = torch.cat((edge_index, edge_index[[1, 0]]), dim=-1)
-        
+
         H_u = self.propagate(all_edges, x=x, edge_l=edge_l, edge_t=edge_t, edge_size=edge_index.size(1))
         return H_u
 
     def message(self, x_j, x_i, edge_index_j, edge_index_i, edge_l, edge_t, edge_size):
         attention_coefficients = torch.matmul(x_i[edge_size:] + edge_l + edge_t, self.attention_weight.t())
-        
+
         src_attention = self.alpha_src(attention_coefficients[:edge_size]).squeeze(-1)
         dst_attention = self.alpha_dst(attention_coefficients[:edge_size]).squeeze(-1)
-        
-        # softmax on tot_attention
+
+        # Normalize incoming legacy sequence-graph attention coefficients.
         tot_attention = torch.cat((src_attention, dst_attention), dim=0)
         attn_weight = softmax(tot_attention, edge_index_i)
 
-        # attn_weight on neighbor node features
+        # Weight neighboring POI features before aggregation.
         updated_rep = x_j * attn_weight.unsqueeze(-1)
         return updated_rep
 
-'''
-SeqGraphEncoder: Encode BiSeqGCN, is as a part of (A) Direction-aware Sequence Graph Multi-scale Representation Module (SeqGraphRep)
-'''
+"""Legacy wrapper around ``BiSeqGCN``; unused by the IDDIFF path."""
 class SeqGraphEncoder(nn.Module):
     def __init__(self, hid_dim):
         super(SeqGraphEncoder, self).__init__()
@@ -89,25 +87,25 @@ class SeqGraphEncoder(nn.Module):
 
 
 
-'''
-DisDyGCN: Distance-based Dynamic Graph Convolution, is as a part of (B) Global-based Distance Graph Geographical Representation Module (DisGraphRep)
-    Input: Global-based POI Distance Graph G_D
-    Return: Updated Node Information h
-'''
+"""Distance-aware graph convolution in the POI Distance Graph Encoder.
+
+Input: global POI distance graph ``G_D``.
+Output: geographically aggregated POI node representations.
+"""
 class DisDyGCN(MessagePassing):
     def __init__(self, in_channels, out_channels, dist_embed_dim=64):
         super(DisDyGCN, self).__init__(aggr='add')
         self._cached_edge = None
         self.linear = nn.Linear(in_channels, out_channels)
         nn.init.xavier_uniform_(self.linear.weight)
-        
-        # dynamic mechanism on diatance
+
+        # Transform distance weights into feature-wise geographic gates.
         self.dist_transform = nn.Sequential(
-            nn.Linear(1, dist_embed_dim),  
+            nn.Linear(1, dist_embed_dim),
             nn.ReLU(),
-            nn.Linear(dist_embed_dim, out_channels)  
+            nn.Linear(dist_embed_dim, out_channels)
             )
-        
+
         nn.init.xavier_uniform_(self.dist_transform[0].weight)
         nn.init.xavier_uniform_(self.dist_transform[2].weight)
 
@@ -118,28 +116,24 @@ class DisDyGCN(MessagePassing):
         x = self.linear(x)
         h = self.propagate(edge_index, x=x, norm=norm_weight, dist_vec=G_D.edge_attr)
         return h
-    
+
     def message(self, x_j, norm, dist_vec):
         dist_weight = self.dist_transform(dist_vec.unsqueeze(-1))
         message_trans = norm.unsqueeze(-1) * x_j * dist_weight
         return message_trans
 
-'''
-DisGraphRep: (B) Global-based Distance Graph Geographical Representation Module in DiffDGMN
-    Input: Global-based POI Distance Graph G_D
-    Return: Node Geographical Representation R_V
-'''
+"""POI Distance Graph Encoder producing geography-aware embeddings ``R_V``."""
 class DisGraphRep(nn.Module):
     def __init__(self, n_poi, hid_dim, G_D: Data):
         super(DisGraphRep, self).__init__()
         self.n_poi, self.hid_dim = n_poi, hid_dim
         self.GCN_layer = gol.conf['num_layer']
 
-        # aggregating own features: 
-        edge_index, _ = add_self_loops(G_D.edge_index)  
+        # Add self-loops so each GCN layer retains the POI's own features.
+        edge_index, _ = add_self_loops(G_D.edge_index)
         dist_vec = torch.cat([G_D.edge_attr, torch.zeros((n_poi,)).to(gol.device)])
-        # a_{i,j}^D: 
-        dis_edgeweight = torch.exp(-(dist_vec ** 2)) 
+        # Convert normalized geographical distance into edge closeness a_{i,j}^D.
+        dis_edgeweight = torch.exp(-(dist_vec ** 2))
         self.G_D = Data(edge_index=edge_index, edge_attr=dis_edgeweight)
 
         self.act = nn.LeakyReLU()
@@ -150,21 +144,23 @@ class DisGraphRep(nn.Module):
     def encode(self, poi_embs):
         layer_embs = poi_embs
         geo_embs = [layer_embs]
-        
+
         for conv in self.DisDyGCN:
-            layer_embs = conv(layer_embs, self.G_D) 
+            layer_embs = conv(layer_embs, self.G_D)
             layer_embs = self.act(layer_embs)
             geo_embs.append(layer_embs)
 
         R_V = torch.stack(geo_embs, dim=1).mean(1)
-        return R_V  
+        return R_V
 
 
 
-'''
-SDE_Diffusion: keep the original symbol name, but implement the user-specified
-discrete interpolation diffusion to minimize downstream code changes.
-'''
+"""Intent Structure-Preserving Diffusion used by the Intent Refinement Module.
+
+The legacy class name is preserved for compatibility. The implementation uses
+deterministic forward interpolation and iterative reverse denoising rather than
+random Gaussian perturbations.
+"""
 class SDE_Diffusion(nn.Module):
     def __init__(self, hid_dim, beta_min, beta_max, dt):
         super(SDE_Diffusion, self).__init__()
@@ -202,10 +198,12 @@ class SDE_Diffusion(nn.Module):
         return self.time_proj(t)
 
     def Est_score(self, x, condition, t):
+        """Predict the clean location prototype conditioned on intent ``S_u``."""
         t_emb = self._time_embedding(t, x.size(0), x.device, x.dtype)
         return self.score_FC(torch.cat((x, condition, t_emb), dim=-1))
 
     def ForwardSDE_diff(self, x0, x1, t):
+        """Forward Interpolation from the location prototype to ``seq_mean``."""
         if not torch.is_tensor(t):
             t = torch.tensor(t, device=x0.device, dtype=x0.dtype)
         t = t.to(device=x0.device, dtype=x0.dtype)
@@ -216,6 +214,7 @@ class SDE_Diffusion(nn.Module):
         return (1.0 - t) * x0 + t * x1
 
     def ReverseSDE_gener(self, x_start, condition, T, x_end=None):
+        """Reverse Denoising that refines the latent location preference ``L_u``."""
         total_steps = max(1, int(T) if T is not None else self.reverse_steps)
         total_steps = max(total_steps, self.reverse_steps)
         current = x_start

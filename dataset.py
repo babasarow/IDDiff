@@ -1,3 +1,9 @@
+"""Data preparation and ranking metrics for IDDIFF.
+
+The loader constructs historical check-in trajectories, spatio-temporal
+transition intervals, negative samples, and the global POI distance graph.
+"""
+
 import torch
 import numpy as np
 from torch.utils.data import Dataset
@@ -30,6 +36,7 @@ def MRR(r):
     return np.reciprocal(np.where(r==1)[0]+1, dtype=float)[0]
 
 def getSeqGraph(seq, time_list):
+    """Build trajectory transition metadata for spatio-temporal encoding."""
     i, x, senders, nodes = 0, [], [], {}
     for node in seq:
         if node not in nodes:
@@ -46,6 +53,7 @@ def getSeqGraph(seq, time_list):
         interv_min[interv_min == 0] = 2 ** 31
         return interv_min.min()
 
+    # Consecutive temporal and geographical intervals enrich each check-in.
     time_interv = (time_list[1:] - time_list[:-1]).long()
     dist_interv = gol.dist_mat[seq[:-1], seq[1:]].long()
     mean_interv = dist_interv.float().mean()
@@ -55,6 +63,7 @@ def getSeqGraph(seq, time_list):
     return Data(x=x, edge_index=edge_index, num_nodes=len(nodes), mean_interv=mean_interv, edge_time=time_interv, edge_dist=dist_interv)
 
 class GraphData(Dataset):
+    """Dataset for next-POI training instances and full-ranking evaluation."""
     def __init__(self, n_user, n_poi, seq_data, pos_dict, is_eval=False, tr_dict=None):
         self.n_user, self.n_poi = n_user, n_poi
         self.seq_data = seq_data
@@ -80,6 +89,7 @@ class GraphData(Dataset):
             seq_graph = getSeqGraph(seq, seq_time)
 
             seq = torch.LongTensor(seq)
+            # Sample an unvisited POI for pairwise training data construction.
             neg = np.random.randint(0, self.n_poi)
             while neg in pos_set:
                 neg = np.random.randint(0, self.n_poi)
@@ -105,6 +115,7 @@ class GraphData(Dataset):
                 seq, seq_graph, (cur_time // 60) % 168
 
 def collate_edge(batch):
+    """Collate training trajectories and their transition graphs."""
     u, p, n, s, s_graph, t = tuple(zip(*batch))
     u = torch.LongTensor(u).to(gol.device)
     p = torch.LongTensor(p).to(gol.device)
@@ -114,6 +125,7 @@ def collate_edge(batch):
     return u, p, n, s, s_graph, t
 
 def collate_eval(batch):
+    """Collate full-ranking evaluation instances and exclusion masks."""
     u, label, exclude_mask, seq, seq_graph, t = tuple(zip(*batch))
     u = torch.LongTensor(u).to(gol.device)
     s_graph = Batch.from_data_list(seq_graph).to(gol.device)
@@ -121,6 +133,7 @@ def collate_eval(batch):
     return u, torch.cat(label, dim=0), torch.cat(exclude_mask, dim=0), seq, s_graph, t
 
 def getDatasets(path='../data/processed', dataset='IST'):
+    """Load trajectory splits and construct the global POI distance graph."""
     dist_pth = join(path, dataset.upper())
     gol.pLog(f'Loading from {dist_pth}')
     with open(join(dist_pth, 'all_data.pkl'), 'rb') as f:
@@ -141,6 +154,7 @@ def getDatasets(path='../data/processed', dataset='IST'):
     val_ds = GraphData(n_user, n_poi, val_set, val_dict, is_eval=True, tr_dict=trn_dict)
     tst_ds = GraphData(n_user, n_poi, tst_set, tst_dict, is_eval=True, tr_dict=trn_dict)
 
+    # POI Distance Graph Encoder input: undirected spatial POI graph G_D.
     with open(join(dist_pth, 'dist_graph.pkl'), 'rb') as f:
         geo_edges = torch.LongTensor(pkl.load(f))
     edge_weights = torch.Tensor(np.load(join(dist_pth, 'dist_on_graph.npy')))
