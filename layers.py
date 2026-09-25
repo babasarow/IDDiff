@@ -1,4 +1,4 @@
-"""Neural layers used by the three core components of IDDIFF."""
+"""Neural layers used by the three core components of IDDiff."""
 
 import gol
 import torch
@@ -28,7 +28,7 @@ class PFFN(nn.Module):
 
 """Legacy bidirectional sequence GCN retained for backward compatibility.
 
-IDDIFF replaces this path with attention-based User Sequence Encoding in the
+IDDiff replaces this path with attention-based User Sequence Encoding in the
 Sequence-aware Trajectory Representation Module.
 """
 class BiSeqGCN(MessagePassing):
@@ -75,7 +75,7 @@ class BiSeqGCN(MessagePassing):
         updated_rep = x_j * attn_weight.unsqueeze(-1)
         return updated_rep
 
-"""Legacy wrapper around ``BiSeqGCN``; unused by the IDDIFF path."""
+"""Legacy wrapper around ``BiSeqGCN``; unused by the IDDiff path."""
 class SeqGraphEncoder(nn.Module):
     def __init__(self, hid_dim):
         super(SeqGraphEncoder, self).__init__()

@@ -1,4 +1,4 @@
-"""Configuration for the auxiliary IDDIFF trajectory representation code."""
+"""Configuration for the auxiliary IDDiff trajectory representation code."""
 
 from dataclasses import dataclass
 

@@ -1,4 +1,4 @@
-"""Attention-based User Sequence Encoding for IDDIFF."""
+"""Attention-based User Sequence Encoding for IDDiff."""
 
 from typing import Optional
 

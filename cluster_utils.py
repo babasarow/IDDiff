@@ -1,4 +1,4 @@
-"""Utilities for the IDDIFF Intent Prototype Construction stage.
+"""Utilities for the IDDiff Intent Prototype Construction stage.
 
 The functions implement valid-length detection, sliding-window trajectory
 partitioning, shared subsequence encoding, DBSCAN prototype construction, and
@@ -34,7 +34,7 @@ def sliding_windows_for_batch(
 
     Only valid, non-padding check-ins are partitioned. A trajectory shorter
     than ``window_size`` is retained as one local subtrajectory, following the
-    fallback strategy described for IDDIFF.
+    fallback strategy described for IDDiff.
 
     Args:
         x: Padded trajectory embeddings with shape ``(B, T, D)``.

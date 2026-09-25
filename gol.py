@@ -1,4 +1,4 @@
-"""Global runtime state and hyperparameter registry for IDDIFF."""
+"""Global runtime state and hyperparameter registry for IDDiff."""
 
 import torch, os, logging, random
 import numpy as np
@@ -18,8 +18,8 @@ os.environ['NUMEXPR_MAX_THREADS'] = '16'
 
 
 
-DATA_PATH = r'D:\postgraduate\code\IDDIFF\IDDIFF-main\data\processed'
-FILE_PATH = r'D:\postgraduate\code\IDDIFF\IDDIFF-main\checkpoints'
+DATA_PATH = r'D:\postgraduate\code\IDDiff\IDDiff-main\data\processed'
+FILE_PATH = r'D:\postgraduate\code\IDDiff\IDDiff-main\checkpoints'
 
 ARG = parse_args()
 LOG_FORMAT = "%(asctime)s  %(message)s"
@@ -42,7 +42,7 @@ os.makedirs(FILE_PATH, exist_ok=True)
 
 dist_mat = torch.from_numpy(np.load(os.path.join(DATA_PATH, dataset.upper(), 'dist_mat.npy')))
 device = torch.device('cpu' if ARG.gpu is None else f'cuda:{ARG.gpu}')
-# Shared settings for all three IDDIFF modules and model optimization.
+# Shared settings for all three IDDiff modules and model optimization.
 conf = {'lr': ARG.lr,
         'decay': ARG.decay,
         'num_layer': ARG.layer,

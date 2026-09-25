@@ -1,4 +1,4 @@
-"""Training and full-ranking evaluation entry point for IDDIFF."""
+"""Training and full-ranking evaluation entry point for IDDiff."""
 
 import os.path
 import torch
@@ -7,11 +7,11 @@ import numpy as np
 from torch.utils.data import DataLoader
 from pprint import pformat
 
-from model import IDDIFF
+from model import IDDiff
 from dataset import GraphData, collate_eval, getDatasets, collate_edge, NDCG_at_k, ACC_at_k, MRR
 
 
-def eval_model(model: IDDIFF, eval_set: GraphData):
+def eval_model(model: IDDiff, eval_set: GraphData):
     """Evaluate next-POI ranking with Acc/Recall, NDCG, and MRR."""
     Ks = [1, 2, 5, 10, 20]
     result = {'Recall': np.zeros(len(Ks)), 'NDCG': np.zeros(len(Ks)), 'MRR': 0., 'ACC': 0.}
@@ -51,8 +51,8 @@ def eval_model(model: IDDIFF, eval_set: GraphData):
     result['ACC'] /= tot_cnt
     return result
 
-def train_eval(model: IDDIFF, datasets):
-    """Optimize IDDIFF and select checkpoints by validation Recall@5."""
+def train_eval(model: IDDiff, datasets):
+    """Optimize IDDiff and select checkpoints by validation Recall@5."""
     trn_set, val_set, tst_set = datasets
     trn_loader = DataLoader(trn_set, batch_size=gol.BATCH_SZ, shuffle=True, collate_fn=collate_edge)
     opt = torch.optim.AdamW(model.parameters(), lr=gol.conf['lr'], weight_decay=gol.conf['decay'])
@@ -104,7 +104,7 @@ def train_eval(model: IDDIFF, datasets):
 if __name__ == '__main__':
     w_path = os.path.join(gol.FILE_PATH, 'weight.pth')
     n_user, n_poi, datasets, G_D = getDatasets(gol.DATA_PATH, gol.dataset)
-    POI_model = IDDIFF(n_user, n_poi, G_D)
+    POI_model = IDDiff(n_user, n_poi, G_D)
     if gol.LOAD:
         POI_model.load_state_dict(torch.load(w_path))
     POI_model = POI_model.to(gol.device)
@@ -113,7 +113,7 @@ if __name__ == '__main__':
     num_params = 0
     for param in POI_model.parameters():
         num_params += param.numel()
-    gol.pLog(f'The Number of Parameters for the IDDIFF Model is {num_params}')
+    gol.pLog(f'The Number of Parameters for the IDDiff Model is {num_params}')
     gol.pLog(f'-------------------Start Training---------------------\n')
 
     test_result, best_epoch = train_eval(POI_model, datasets)

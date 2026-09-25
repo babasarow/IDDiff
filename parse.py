@@ -1,4 +1,4 @@
-"""Command-line arguments for IDDIFF training and evaluation."""
+"""Command-line arguments for IDDiff training and evaluation."""
 
 import argparse
 
@@ -6,14 +6,14 @@ import argparse
 def parse_args():
     """Parse optimization, representation, graph, and diffusion settings."""
     parser = argparse.ArgumentParser(
-        description="IDDIFF for Next POI Recommendation"
+        description="IDDiff for Next POI Recommendation"
     )
 
     # Checkpoint and logging settings.
     parser.add_argument(
         '--path',
         type=str,
-        default="../IDDIFF/code/checkpoints",
+        default="../IDDiff/code/checkpoints",
         help='path to save weights',
     )
     parser.add_argument('--log', type=str, default=None, help="log file path")

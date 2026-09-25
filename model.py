@@ -1,4 +1,4 @@
-"""IDDIFF: Intent-aware Deterministic Diffusion for next-POI recommendation.
+"""IDDiff: Intent-aware Deterministic Diffusion for next-POI recommendation.
 
 The implementation contains the Sequence-aware Trajectory Representation
 Module, POI Distance Graph Encoder, and Intent Refinement Module. Existing
@@ -29,10 +29,10 @@ def Seq_MASK(lengths, max_len=None):
             .unsqueeze(0).expand(batch_size, max_len).lt(lengths.unsqueeze(1))).reshape(lengths_shape)
 
 
-class IDDIFF(nn.Module):
-    """IDDIFF model with legacy class naming for checkpoint compatibility."""
+class IDDiff(nn.Module):
+    """IDDiff model with legacy class naming for checkpoint compatibility."""
     def __init__(self, n_user, n_poi, G_D: Data):
-        super(IDDIFF, self).__init__()
+        super(IDDiff, self).__init__()
         self.n_user, self.n_poi = n_user, n_poi
         self.hid_dim = gol.conf['hidden']
         self.step_num = 1000

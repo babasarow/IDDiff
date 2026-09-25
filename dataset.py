@@ -1,4 +1,4 @@
-"""Data preparation and ranking metrics for IDDIFF.
+"""Data preparation and ranking metrics for IDDiff.
 
 The loader constructs historical check-in trajectories, spatio-temporal
 transition intervals, negative samples, and the global POI distance graph.

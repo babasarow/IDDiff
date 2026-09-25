@@ -1,4 +1,4 @@
-"""Auxiliary refactoring of the IDDIFF trajectory-intent pipeline.
+"""Auxiliary refactoring of the IDDiff trajectory-intent pipeline.
 
 This file isolates User Sequence Encoding and Intent Prototype Construction.
 The production model remains in ``model.py``; this auxiliary class preserves
@@ -18,7 +18,7 @@ from cluster_utils import (
 )
 
 
-class IDDIFFRefactored(nn.Module):
+class IDDiffRefactored(nn.Module):
     """Prototype-oriented implementation of trajectory intent extraction.
 
     The pipeline applies User Sequence Encoding to obtain a whole-trajectory
