@@ -1,11 +1,11 @@
-# IDDiff: Intent-aware Deterministic Diffusion Model for Next POI Recommendation
+# IDDiff: Intent-aware Deterministic Diffusion Model for Next Location Prediction
 
-This repository provides the PyTorch implementation of **IDDiff**, an intent-aware deterministic diffusion framework for next point-of-interest (POI) recommendation.
+This repository provides the PyTorch implementation of **IDDiff**, an intent-aware deterministic diffusion framework for next location prediction.
 
 IDDiff contains three main components:
 
 1. **Sequence-aware Trajectory Representation Module** constructs a whole-trajectory representation, extracts local intent prototypes through sliding-window segmentation and DBSCAN clustering, and selects the dominant prototype as the diffusion condition.
-2. **POI Distance Graph Encoder** captures geographical dependencies among POIs with distance-aware graph convolution.
+2. **Location Distance Graph Encoder** captures geographical dependencies among Locations with distance-aware graph convolution.
 3. **Intent Refinement Module** generates a location archetype and refines it through an intent-guided deterministic diffusion process.
 
 ## 📦 Environment
@@ -87,10 +87,10 @@ Each dataset directory must contain the following files:
 
 Their roles are:
 
-- `all_data.pkl`: user/POI statistics, trajectory instances, and chronological training, validation, and test splits.
-- `dist_mat.npy`: pairwise POI distance matrix used for spatio-temporal interval construction.
-- `dist_graph.pkl`: edge indices of the global POI distance graph.
-- `dist_on_graph.npy`: distance-based edge values associated with the POI graph.
+- `all_data.pkl`: user/location statistics, trajectory instances, and chronological training, validation, and test splits.
+- `dist_mat.npy`: pairwise location distance matrix used for spatio-temporal interval construction.
+- `dist_graph.pkl`: edge indices of the global location distance graph.
+- `dist_on_graph.npy`: distance-based edge values associated with the location graph.
 
 > **Note:** Data preprocessing scripts and raw datasets are not included in the current code package. The processed files must follow the structure expected by `dataset.py`.
 
